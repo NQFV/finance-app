@@ -22,13 +22,6 @@ CREATE TABLE transactions
     user_id int references users(user_id) on delete cascade
 );
 
-CREATE TABLE users_transactions
-(
-    id      serial                                           not null unique,
-    user_id int references users (user_id) on delete cascade      not null,
-    transaction_id int references transactions (transaction_id) on delete cascade not null
-);
-
 CREATE TABLE transaction_category
 (
     id      serial                                           not null unique,

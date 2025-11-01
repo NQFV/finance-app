@@ -2,7 +2,6 @@ package repository
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/NQFV/p/pkg/models"
 	"github.com/jmoiron/sqlx"
@@ -22,18 +21,11 @@ func (r *TransactionPostgres) Create(userId int, transaction models.Transaction)
 		return 0, err
 	}
 
-	newDate := time.Now()
 	var id int
-	createTransactionQuery := fmt.Sprintf("INSERT INTO %s (type, date, amount, category_id, user_id) VALUES ($1, $2, $3, $4, $5) RETURNING transaction_id", transactionsTable)
-	row := tx.QueryRow(createTransactionQuery, transaction.Type, newDate, transaction.Amount, transaction.Category.Id, userId)
+	createTransactionQuery := fmt.Sprintf(`INSERT INTO %s (type, date, amount, category_id, user_id)
+										 VALUES ($1, $2, $3, $4, $5) RETURNING transaction_id`, transactionsTable)
+	row := tx.QueryRow(createTransactionQuery, transaction.Type, transaction.Date, transaction.Amount, transaction.Category.Id, userId)
 	if err := row.Scan(&id); err != nil {
-		tx.Rollback()
-		return 0, err
-	}
-
-	createUsersTransactionQuery := fmt.Sprintf("INSERT INTO %s (user_id, transaction_id) VALUES ($1, $2)", users_transactionsTable)
-	_, err = tx.Exec(createUsersTransactionQuery, userId, id)
-	if err != nil {
 		tx.Rollback()
 		return 0, err
 	}
@@ -44,8 +36,10 @@ func (r *TransactionPostgres) Create(userId int, transaction models.Transaction)
 func (r *TransactionPostgres) GetAll(userId int) ([]models.Transaction, error) {
 	var transactions []models.Transaction
 
-	query := fmt.Sprintf(`SELECT t.transaction_id, t.type, t.date, t.amount, t.user_id, c.category_id, c.name  FROM %s t INNER JOIN %s ul ON t.transaction_id = ul.transaction_id LEFT JOIN %s c ON t.category_id = c.category_id WHERE ul.user_id = $1`,
-		transactionsTable, users_transactionsTable, categoriesTable)
+	query := fmt.Sprintf(`SELECT t.transaction_id, t.type, t.date, t.amount, t.user_id, c.category_id, c.name  
+						FROM %s t  
+						LEFT JOIN %s c ON t.category_id = c.category_id WHERE t.user_id = $1`,
+		transactionsTable, categoriesTable)
 	rows, err := r.db.Query(query, userId)
 	if err != nil {
 		return nil, err
@@ -75,8 +69,9 @@ func (r *TransactionPostgres) GetById(userId, transactionId int) (models.Transac
 	var catName string
 
 	query := fmt.Sprintf(`SELECT t.transaction_id, t.type, t.date, t.amount, t.user_id, c.category_id, c.name FROM %s t
-								INNER JOIN %s ul on t.transaction_id = ul.transaction_id LEFT JOIN %s c ON t.category_id = c.category_id WHERE ul.user_id = $1 AND ul.transaction_id = $2`,
-		transactionsTable, users_transactionsTable, categoriesTable)
+							LEFT JOIN %s c ON t.category_id = c.category_id 
+							WHERE user_id = $1 AND transaction_id = $2`,
+		transactionsTable, categoriesTable)
 	err := r.db.QueryRow(query, userId, transactionId).Scan(&transaction.Id, &transaction.Type, &transaction.Date, &transaction.Amount, &transaction.UserId, &catId, &catName)
 	if err != nil {
 		return models.Transaction{}, err
@@ -91,24 +86,25 @@ func (r *TransactionPostgres) GetById(userId, transactionId int) (models.Transac
 }
 
 func (r *TransactionPostgres) Update(userId, transactionId int, input models.Transaction) error {
-	query := fmt.Sprintf(`UPDATE %s t SET type = $1, amount = $2, category_id = $3 FROM %s ul WHERE t.transaction_id = ul.transaction_id AND ul.user_id = $4 AND ul.transaction_id = $5`,
-		transactionsTable, users_transactionsTable)
+	query := fmt.Sprintf(`UPDATE %s SET type = $1, amount = $2, category_id = $3 
+						WHERE transaction_id = $4 AND user_id = $5`,
+		transactionsTable)
 
 	_, err := r.db.Exec(query,
 		input.Type,
 		input.Amount,
 		input.Category.Id,
-		userId,
 		transactionId,
+		userId,
 	)
 
 	return err
 }
 
 func (r *TransactionPostgres) Delete(userId, transactionId int) error {
-	query := fmt.Sprintf("DELETE FROM %s tl USING %s ul WHERE tl.transaction_id = ul.transaction_id AND ul.user_id=$1 AND ul.transaction_id=$2",
-		transactionsTable, users_transactionsTable)
-	_, err := r.db.Exec(query, userId, transactionId)
+	query := fmt.Sprintf("DELETE FROM %s WHERE transaction_id = $1 AND user_id = $2",
+		transactionsTable)
+	_, err := r.db.Exec(query, transactionId, userId)
 
 	return err
 }

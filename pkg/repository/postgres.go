@@ -11,7 +11,6 @@ const (
 	transactionsTable         = "transactions"
 	categoriesTable           = "categories"
 	transaction_categoryTable = "transaction_category"
-	users_transactionsTable   = "users_transactions"
 )
 
 type Config struct {

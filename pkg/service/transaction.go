@@ -1,6 +1,8 @@
 package service
 
 import (
+	"time"
+
 	"github.com/NQFV/p/pkg/models"
 	"github.com/NQFV/p/pkg/repository"
 )
@@ -13,8 +15,11 @@ func NewTransactionService(repo repository.Transaction) *TransactionService {
 	return &TransactionService{repo: repo}
 }
 
-func (s *TransactionService) Create(userId int, list models.Transaction) (int, error) {
-	return s.repo.Create(userId, list)
+func (s *TransactionService) Create(userId int, transaction models.Transaction) (int, error) {
+	if transaction.Date.IsZero() {
+		transaction.Date = time.Now().UTC()
+	}
+	return s.repo.Create(userId, transaction)
 }
 
 func (s *TransactionService) GetAll(userId int) ([]models.Transaction, error) {
